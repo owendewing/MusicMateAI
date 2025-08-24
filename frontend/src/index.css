@@ -1,0 +1,73 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-spotify-black text-white font-sans;
+  }
+  
+  * {
+    @apply border-spotify-gray;
+  }
+}
+
+@layer components {
+  .chat-message {
+    @apply p-4 rounded-lg mb-4 animate-slide-up;
+  }
+  
+  .user-message {
+    @apply bg-spotify-green text-spotify-black ml-8;
+  }
+  
+  .assistant-message {
+    @apply bg-spotify-gray text-white mr-8;
+  }
+  
+  .tool-selector {
+    @apply bg-spotify-dark-gray border border-spotify-gray rounded-lg p-3 hover:border-spotify-green transition-colors;
+  }
+  
+  .tool-selector.active {
+    @apply border-spotify-green bg-spotify-gray;
+  }
+  
+  .input-field {
+    @apply bg-spotify-dark-gray border border-spotify-gray rounded-lg px-4 py-3 text-white placeholder-spotify-light-gray focus:border-spotify-green focus:outline-none transition-colors;
+  }
+  
+  .btn-primary {
+    @apply bg-spotify-green text-spotify-black px-6 py-3 rounded-lg font-semibold hover:bg-green-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  
+  .btn-secondary {
+    @apply bg-spotify-gray text-white px-6 py-3 rounded-lg font-semibold hover:bg-spotify-dark-gray transition-colors border border-spotify-gray;
+  }
+  
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Custom scrollbar for webkit browsers */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-spotify-dark-gray;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-spotify-gray rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-spotify-light-gray;
+} 

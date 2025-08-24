@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<fcpxml version="1.8">
+    <resources>
+        <format id="r1" name="FFVideoFormat720p25" frameDuration="100/2500s" width="1280" height="720"></format>
+        <format id="r2" name="FFVideoFormatRateUndefined"></format>
+        <media id="r3" name="random">
+            <sequence format="r1" duration="12086400/48000s" tcStart="3600s" tcFormat="NDF" audioRate="48k">
+                <spine>
+                    <gap name="Gap" duration="12086400/48000s">
+                        <clip name="shs_dmt_electric_guitar_4.aif" lane="-1" offset="0s" duration="1311280/48000s" format="r2">
+                            <audio ref="r4" duration="1311280/48000s"></audio>
+                        </clip>
+                        <clip name="shs_dmt_electric_guitar.aif" lane="-2" offset="0s" duration="2392624/48000s" format="r2">
+                            <audio ref="r5" duration="2392624/48000s"></audio>
+                        </clip>
+                        <clip name="shs_dmt_electric_guitar_2.aif" lane="-3" offset="0s" duration="2359856/48000s" format="r2">
+                            <audio ref="r6" duration="2359856/48000s"></audio>
+                        </clip>
+                        <clip name="tp_sldnb_keys_mr_sparkl_1.aif" lane="-4" offset="0s" duration="3179056/48000s" format="r2">
+                            <audio ref="r7" duration="3179056/48000s"></audio>
+                        </clip>
+                        <clip name="WW_NA_Synth_Keys_Fallin_2.aif" lane="-5" offset="0s" duration="2261552/48000s" format="r2">
+                            <audio ref="r8" duration="2261552/48000s"></audio>
+                        </clip>
+                        <clip name="shs_dmt_electric_guitar_3.aif" lane="-6" offset="0s" duration="3473968/48000s" format="r2">
+                            <audio ref="r9" duration="3473968/48000s"></audio>
+                        </clip>
+                        <clip name="MO_GC_SY_Electric_Guita_1.aif" lane="-7" offset="0s" duration="2097712/48000s" format="r2">
+                            <audio ref="r10" duration="2097712/48000s"></audio>
+                        </clip>
+                        <clip name="Crunchy Pop_1.aif" lane="-8" offset="0s" duration="1868336/48000s" format="r2">
+                            <audio ref="r11" duration="1868336/48000s"></audio>
+                        </clip>
+                        <clip name="030_Shaker_-_AMPED_Zenhiser_1.aif" lane="-9" offset="0s" duration="1901104/48000s" format="r2">
+                            <audio ref="r12" duration="1901104/48000s"></audio>
+                        </clip>
+                        <clip name="dhh_shaker_fizz_1.aif" lane="-10" offset="0s" duration="1901104/48000s" format="r2">
+                            <audio ref="r13" duration="1901104/48000s"></audio>
+                        </clip>
+                        <clip name="TS_PAUL_MABURY_tom_one_shot_70s_floor_nat_s1_1.aif" lane="-11" offset="0s" duration="1933872/48000s" format="r2">
+                            <audio ref="r14" duration="1933872/48000s"></audio>
+                        </clip>
+                        <clip name="TS_VHH_tom_warm_rack_1.aif" lane="-12" offset="0s" duration="1933872/48000s" format="r2">
+                            <audio ref="r15" duration="1933872/48000s"></audio>
+                        </clip>
+                        <clip name="SS_AL_perc_banger_1.aif" lane="-13" offset="0s" duration="1868336/48000s" format="r2">
+                            <audio ref="r16" duration="1868336/48000s"></audio>
+                        </clip>
+                        <clip name="TS_VK_kick_motown_1.aif" lane="-14" offset="0s" duration="1868336/48000s" format="r2">
+                            <audio ref="r17" duration="1868336/48000s"></audio>
+                        </clip>
+                        <clip name="ESM_VD_drums_kick_one_shot_big_thick_1.aif" lane="-15" offset="0s" duration="1901104/48000s" format="r2">
+                            <audio ref="r18" duration="1901104/48000s"></audio>
+                        </clip>
+                        <clip name="SLS_CSP_snare_acoustic_rim_above_1.aif" lane="-16" offset="0s" duration="1901104/48000s" format="r2">
+                            <audio ref="r19" duration="1901104/48000s"></audio>
+                        </clip>
+                        <clip name="Handclap_10.aif" lane="-17" offset="0s" duration="1901104/48000s" format="r2">
+                            <audio ref="r20" duration="1901104/48000s"></audio>
+                        </clip>
+                        <clip name="TS_AMD_snare_mahogany_1.aif" lane="-18" offset="0s" duration="1901104/48000s" format="r2">
+                            <audio ref="r21" duration="1901104/48000s"></audio>
+                        </clip>
+                    </gap>
+                </spine>
+            </sequence>
+        </media>
+        <asset id="r4" name="shs_dmt_electric_guitar_4.aif" src="file:///Users/owendewing/Desktop/shs_dmt_electric_guitar_4.aif" start="0s" duration="1311280/48000s" hasAudio="1" audioChannels="2" audioRate="48000"></asset>
+        <asset id="r5" name="shs_dmt_electric_guitar.aif" src="file:///Users/owendewing/Desktop/shs_dmt_electric_guitar.aif" start="0s" duration="2392624/48000s" hasAudio="1" audioChannels="2" audioRate="48000"></asset>
+        <asset id="r6" name="shs_dmt_electric_guitar_2.aif" src="file:///Users/owendewing/Desktop/shs_dmt_electric_guitar_2.aif" start="0s" duration="2359856/48000s" hasAudio="1" audioChannels="2" audioRate="48000"></asset>
+        <asset id="r7" name="tp_sldnb_keys_mr_sparkl_1.aif" src="file:///Users/owendewing/Desktop/tp_sldnb_keys_mr_sparkl_1.aif" start="0s" duration="3179056/48000s" hasAudio="1" audioChannels="2" audioRate="48000"></asset>
+        <asset id="r8" name="WW_NA_Synth_Keys_Fallin_2.aif" src="file:///Users/owendewing/Desktop/WW_NA_Synth_Keys_Fallin_2.aif" start="0s" duration="2261552/48000s" hasAudio="1" audioChannels="2" audioRate="48000"></asset>
+        <asset id="r9" name="shs_dmt_electric_guitar_3.aif" src="file:///Users/owendewing/Desktop/shs_dmt_electric_guitar_3.aif" start="0s" duration="3473968/48000s" hasAudio="1" audioChannels="2" audioRate="48000"></asset>
+        <asset id="r10" name="MO_GC_SY_Electric_Guita_1.aif" src="file:///Users/owendewing/Desktop/MO_GC_SY_Electric_Guita_1.aif" start="0s" duration="2097712/48000s" hasAudio="1" audioChannels="2" audioRate="48000"></asset>
+        <asset id="r11" name="Crunchy Pop_1.aif" src="file:///Users/owendewing/Desktop/Crunchy%20Pop_1.aif" start="0s" duration="1868336/48000s" hasAudio="1" audioChannels="2" audioRate="48000"></asset>
+        <asset id="r12" name="030_Shaker_-_AMPED_Zenhiser_1.aif" src="file:///Users/owendewing/Desktop/030_Shaker_-_AMPED_Zenhiser_1.aif" start="0s" duration="1901104/48000s" hasAudio="1" audioChannels="2" audioRate="48000"></asset>
+        <asset id="r13" name="dhh_shaker_fizz_1.aif" src="file:///Users/owendewing/Desktop/dhh_shaker_fizz_1.aif" start="0s" duration="1901104/48000s" hasAudio="1" audioChannels="2" audioRate="48000"></asset>
+        <asset id="r14" name="TS_PAUL_MABURY_tom_one_shot_70s_floor_nat_s1_1.aif" src="file:///Users/owendewing/Desktop/TS_PAUL_MABURY_tom_one_shot_70s_floor_nat_s1_1.aif" start="0s" duration="1933872/48000s" hasAudio="1" audioChannels="2" audioRate="48000"></asset>
+        <asset id="r15" name="TS_VHH_tom_warm_rack_1.aif" src="file:///Users/owendewing/Desktop/TS_VHH_tom_warm_rack_1.aif" start="0s" duration="1933872/48000s" hasAudio="1" audioChannels="2" audioRate="48000"></asset>
+        <asset id="r16" name="SS_AL_perc_banger_1.aif" src="file:///Users/owendewing/Desktop/SS_AL_perc_banger_1.aif" start="0s" duration="1868336/48000s" hasAudio="1" audioChannels="2" audioRate="48000"></asset>
+        <asset id="r17" name="TS_VK_kick_motown_1.aif" src="file:///Users/owendewing/Desktop/TS_VK_kick_motown_1.aif" start="0s" duration="1868336/48000s" hasAudio="1" audioChannels="2" audioRate="48000"></asset>
+        <asset id="r18" name="ESM_VD_drums_kick_one_shot_big_thick_1.aif" src="file:///Users/owendewing/Desktop/ESM_VD_drums_kick_one_shot_big_thick_1.aif" start="0s" duration="1901104/48000s" hasAudio="1" audioChannels="2" audioRate="48000"></asset>
+        <asset id="r19" name="SLS_CSP_snare_acoustic_rim_above_1.aif" src="file:///Users/owendewing/Desktop/SLS_CSP_snare_acoustic_rim_above_1.aif" start="0s" duration="1901104/48000s" hasAudio="1" audioChannels="2" audioRate="48000"></asset>
+        <asset id="r20" name="Handclap_10.aif" src="file:///Users/owendewing/Desktop/Handclap_10.aif" start="0s" duration="1901104/48000s" hasAudio="1" audioChannels="2" audioRate="48000"></asset>
+        <asset id="r21" name="TS_AMD_snare_mahogany_1.aif" src="file:///Users/owendewing/Desktop/TS_AMD_snare_mahogany_1.aif" start="0s" duration="1901104/48000s" hasAudio="1" audioChannels="2" audioRate="48000"></asset>
+    </resources>
+    <library>
+        <event name="Event for random">
+            <ref-clip name="random" ref="r3" duration="12086400/48000s"></ref-clip>
+        </event>
+    </library>
+</fcpxml>

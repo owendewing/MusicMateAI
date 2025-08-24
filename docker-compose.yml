@@ -1,0 +1,35 @@
+services:
+  music-production-ai:
+    build: .
+    ports:
+      - "3000:80"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
+    volumes:
+      - ./unstructured_data:/app/unstructured_data:ro
+      - ./structured_data:/app/structured_data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Development service (optional)
+  music-production-ai-dev:
+    build: .
+    ports:
+      - "3001:80"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - TAVILY_API_KEY=${TAVILY_API_KEY}
+      - ENVIRONMENT=development
+    volumes:
+      - ./unstructured_data:/app/unstructured_data:ro
+      - ./structured_data:/app/structured_data
+      - ./backend:/app/backend
+      - ./frontend:/app/frontend
+    restart: unless-stopped
+    profiles:
+      - dev 
