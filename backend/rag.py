@@ -20,6 +20,10 @@ from langgraph.graph import START, StateGraph
 from typing_extensions import List, TypedDict
 from langchain_core.documents import Document
 import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Global variables for lazy initialization
 docs = None
@@ -36,27 +40,60 @@ def initialize_rag():
     if retriever is not None:
         return  # Already initialized
     
+    # Check if OpenAI API key is available
+    if not os.getenv("OPENAI_API_KEY"):
+        print("Warning: OPENAI_API_KEY not found in environment variables. RAG system will not be available.")
+        print("Please set your OpenAI API key in the environment variables.")
+        return
+    
     try:
-        path = "../data/"  # Data directory is at project root level
+        # Use absolute path to data directory
+        current_dir = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.join(current_dir, "..", "data")
         
         # Check if data directory exists
         if not os.path.exists(path):
             print(f"Warning: Data directory '{path}' not found. RAG system will not be available.")
             return
         
-        loader = DirectoryLoader(path, glob="*.pdf", loader_cls=PyMuPDFLoader)
-        docs = loader.load()
+        print(f"Loading documents from: {path}")
+        
+        # Load documents with error handling for corrupted PDFs
+        docs = []
+        pdf_files = [f for f in os.listdir(path) if f.endswith('.pdf')]
+        
+        for pdf_file in pdf_files:
+            try:
+                file_path = os.path.join(path, pdf_file)
+                loader = PyMuPDFLoader(file_path)
+                file_docs = loader.load()
+                docs.extend(file_docs)
+                print(f"Successfully loaded {len(file_docs)} pages from {pdf_file}")
+            except Exception as e:
+                print(f"Warning: Failed to load {pdf_file}: {e}")
+                continue
+        
+        print(f"Successfully loaded {len(docs)} total document pages")
         
         if not docs:
-            print("Warning: No PDF documents found in data directory. RAG system will not be available.")
+            print("Warning: No PDF documents could be loaded from data directory. RAG system will not be available.")
             return
         
         # Improved chunking for textbooks and manuals - larger chunks to preserve context
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=200)
         split_documents = text_splitter.split_documents(docs)
         
-        embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+        print(f"Split documents into {len(split_documents)} chunks")
         
+        print("Initializing embeddings...")
+        try:
+            embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+        except Exception as e:
+            print(f"Error initializing OpenAI embeddings: {e}")
+            print("Please ensure OPENAI_API_KEY is set in your environment variables")
+            return
+        
+        print("Creating vector store...")
         client = QdrantClient(":memory:")
         
         client.create_collection(
@@ -70,6 +107,7 @@ def initialize_rag():
             embedding=embeddings,
         )
         
+        print("Adding documents to vector store...")
         vectorstore.add_documents(split_documents)
         
         retriever = vectorstore.as_retriever(search_kwargs={"k" : 4})  # Reduced for faster retrieval
@@ -88,7 +126,11 @@ def retrieve(state):
   return {"context" : retrieved_docs}
 
 RAG_PROMPT = """\
-You are a helpful assistant who answers questions based on provided context. You must only use the provided context to answer the question. If you do not know the answer, or it's not contained in the provided context response with "I don't know"
+You are a helpful music production assistant. Answer the user's question based on the provided context from music production manuals and guides. 
+
+Use the context to provide accurate, helpful information. If the context contains relevant information, use it to answer the question. If the context doesn't contain enough information to fully answer the question, provide what you can from the context and mention that you may need more specific information.
+
+Keep your response concise and focused (aim for 2-4 sentences maximum).
 
 Context:
 {context}
@@ -111,7 +153,13 @@ def generate(state):
   docs_content = "\n\n".join(doc.page_content for doc in state["context"])
   messages = rag_prompt.format_messages(question=state["question"], context=docs_content)
   response = openai_chat_model.invoke(messages)
-  return {"response" : response.content}
+  
+  # Limit response length and clean it up
+  response_text = response.content.strip()
+  if len(response_text) > 500:  # Limit to 500 characters
+    response_text = response_text[:497] + "..."
+  
+  return {"response": response_text}
 
 class State(TypedDict):
   question: str
@@ -121,3 +169,22 @@ class State(TypedDict):
 graph_builder = StateGraph(State).add_sequence([retrieve, generate])
 graph_builder.add_edge(START, "retrieve")
 graph = graph_builder.compile()
+
+def test_rag_initialization():
+    """Test function to debug RAG initialization"""
+    try:
+        print("Testing RAG initialization...")
+        initialize_rag()
+        if retriever is not None:
+            print("RAG initialization successful!")
+            return True
+        else:
+            print("RAG initialization failed - retriever is None")
+            return False
+    except Exception as e:
+        print(f"RAG initialization error: {e}")
+        return False
+
+if __name__ == "__main__":
+    # Test the RAG system
+    test_rag_initialization()

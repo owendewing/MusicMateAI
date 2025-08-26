@@ -25,6 +25,10 @@ from rag import graph
 # Load environment variables
 load_dotenv()
 
+# Global state for storing analysis data
+global_midi_analysis = {}
+global_lyrics_analysis = {}
+
 app = FastAPI(title="Music Mate AI", version="1.0.0")
 
 # CORS middleware - allow frontend
@@ -70,6 +74,9 @@ def write_lyrics_tool(prompt: str) -> str:
         # Check if we have lyrics analysis data to work with
         global global_lyrics_analysis
         
+        print(f"DEBUG: write_lyrics_tool called with prompt: {prompt}")
+        print(f"DEBUG: global_lyrics_analysis: {global_lyrics_analysis}")
+        
         if global_lyrics_analysis:
             # Use the analyzed lyrics data to inform the generation
             lyrics_data = global_lyrics_analysis
@@ -77,8 +84,8 @@ def write_lyrics_tool(prompt: str) -> str:
             # Create a context-aware prompt
             context_prompt = f"""
             Based on the analyzed lyrics file '{lyrics_data['filename']}' with the following characteristics:
-            - Mood: {lyrics_data['mood']}
             - Structure: {lyrics_data['structure']}
+            - Content: {lyrics_data['content'][:500]}...
             
             User request: {prompt}
             
@@ -136,6 +143,9 @@ def suggest_instruments_or_samples_tool(key: str = None, genre: str = None, proj
         # Check if we have MIDI analysis data to work with
         global global_midi_analysis
         
+        print(f"DEBUG: suggest_instruments_or_samples_tool called with key={key}, genre={genre}, question={question}")
+        print(f"DEBUG: global_midi_analysis: {global_midi_analysis}")
+        
         # Use MIDI data if available, otherwise use provided parameters
         if global_midi_analysis:
             midi_data = global_midi_analysis
@@ -143,6 +153,8 @@ def suggest_instruments_or_samples_tool(key: str = None, genre: str = None, proj
             actual_tempo = midi_data.get('tempo_info', {}).get('primary_tempo')
             actual_time_signature = midi_data.get('time_signature')
             filename = midi_data.get('filename')
+            
+            print(f"DEBUG: Using MIDI data - Key: {actual_key}, Tempo: {actual_tempo}, File: {filename}")
             
             # Create a context-aware prompt using MIDI data
             context_prompt = f"""
@@ -171,8 +183,19 @@ def suggest_instruments_or_samples_tool(key: str = None, genre: str = None, proj
         messages = [SystemMessage(content="You are a music production expert who provides specific, contextual instrument and sample recommendations.")]
         messages.append(HumanMessage(content=context_prompt))
         
+        print(f"DEBUG: Context prompt for instruments tool: {context_prompt}")
         response = model.invoke(messages)
-        return response.content
+        print(f"DEBUG: Instruments tool response: {response.content}")
+        
+        # Ensure we always return a response
+        if response.content and response.content.strip():
+            return response.content
+        else:
+            # Fallback response if the model returns empty content
+            if global_midi_analysis:
+                return f"Based on your MIDI file analysis (Key: {actual_key}, Tempo: {actual_tempo} BPM), here are some instrument and sample recommendations for making your song more danceable:\n\n- Kick Drums: Use punchy, tight kicks around 60-80Hz\n- Hi-Hats: Add crisp, bright hi-hats for energy\n- Synth Bass: Deep, rhythmic bass in the key of {actual_key}\n- Lead Synths: Bright, catchy leads for hooks\n- Percussion: Add shakers, tambourines for groove\n- Pads: Atmospheric pads to fill out the sound"
+            else:
+                return "Here are some general instrument and sample recommendations for making your song more danceable:\n\n- Kick Drums: Use punchy, tight kicks around 60-80Hz\n- Hi-Hats: Add crisp, bright hi-hats for energy\n- Synth Bass: Deep, rhythmic bass\n- Lead Synths: Bright, catchy leads for hooks\n- Percussion: Add shakers, tambourines for groove\n- Pads: Atmospheric pads to fill out the sound"
         
     except Exception as e:
         return f"Error generating instrument/sample suggestions: {str(e)}"
@@ -207,9 +230,9 @@ def arrangement_advice_tool(project_summary: str, target_style: str = None, mood
             context_parts.append(f"""
             Lyrics Analysis Data:
             - File: {lyrics_data.get('filename')}
-            - Mood: {lyrics_data.get('mood')}
             - Structure: {lyrics_data.get('structure')}
             - Word count: {lyrics_data.get('word_count')}
+            - Line count: {lyrics_data.get('line_count')}
             """)
         
         # Create comprehensive context
@@ -282,33 +305,62 @@ def process_lyrics_file(question: str, filename: str = None) -> str:
         file_content = ""
         if lyrics_file.suffix.lower() == '.pdf':
             try:
+                # Try PyPDF2 first
                 import PyPDF2
                 with open(lyrics_file, 'rb') as file:
                     pdf_reader = PyPDF2.PdfReader(file)
                     for page in pdf_reader.pages:
                         file_content += page.extract_text() + "\n"
+                print(f"DEBUG: Successfully read PDF with PyPDF2, content length: {len(file_content)}")
             except Exception as e:
-                return f"Error reading PDF file: {str(e)}"
+                print(f"DEBUG: PyPDF2 failed: {e}")
+                try:
+                    # Fallback to PyMuPDF if PyPDF2 fails
+                    import fitz  # PyMuPDF
+                    doc = fitz.open(lyrics_file)
+                    for page in doc:
+                        file_content += page.get_text() + "\n"
+                    doc.close()
+                    print(f"DEBUG: Successfully read PDF with PyMuPDF, content length: {len(file_content)}")
+                except Exception as e2:
+                    print(f"DEBUG: PyMuPDF also failed: {e2}")
+                    return f"Error reading PDF file with both PyPDF2 and PyMuPDF: {str(e)} and {str(e2)}"
         elif lyrics_file.suffix.lower() == '.txt':
             try:
                 with open(lyrics_file, 'r', encoding='utf-8') as file:
                     file_content = file.read()
+                print(f"DEBUG: Successfully read text file, content length: {len(file_content)}")
             except Exception as e:
                 return f"Error reading text file: {str(e)}"
+        
+        # Clean up the extracted text - handle extra spaces and line breaks
+        import re
+        file_content = re.sub(r'\s+', ' ', file_content)  # Replace multiple spaces with single space
+        file_content = re.sub(r'\n\s*\n', '\n', file_content)  # Remove empty lines
+        file_content = file_content.strip()
+        
+        print(f"DEBUG: File content length: {len(file_content)}")
+        print(f"DEBUG: File content preview: {file_content[:200]}...")
         
         if not file_content.strip():
             return "File appears to be empty or unreadable."
         
         # Analyze lyrics content
-        lines = file_content.split('\n')
+        lines = [line.strip() for line in file_content.split('\n') if line.strip()]
         word_count = len(file_content.split())
         line_count = len(lines)
         
-        # Look for song structure patterns
-        has_verse = any('verse' in line.lower() for line in lines)
-        has_chorus = any('chorus' in line.lower() for line in lines)
-        has_bridge = any('bridge' in line.lower() for line in lines)
-        has_drop = any('drop' in line.lower() for line in lines)
+        print(f"DEBUG: Found {line_count} non-empty lines")
+        print(f"DEBUG: First few lines: {lines[:5]}")
+        
+        # Look for song structure patterns (case insensitive)
+        content_lower = file_content.lower()
+        has_verse = 'verse' in content_lower
+        has_chorus = 'chorus' in content_lower
+        has_bridge = 'bridge' in content_lower
+        has_drop = 'drop' in content_lower
+        
+        print(f"DEBUG: Structure analysis - Verse: {has_verse}, Chorus: {has_chorus}, Bridge: {has_bridge}, Drop: {has_drop}")
         
         
         # Store analysis data globally for other tools to use
@@ -356,20 +408,35 @@ def rag_knowledge_base_DAW_tool(question: str) -> str:
     textbooks and manuals to provide accurate, educational information.
     """
     try:
+        print(f"RAG tool called with question: {question}")
+        
         # Use the RAG graph to get response with timeout
-        import asyncio
         import concurrent.futures
         
         def run_rag():
-            return graph.invoke({"question": question})
+            try:
+                print("Invoking RAG graph...")
+                result = graph.invoke({"question": question})
+                print(f"RAG graph result: {result}")
+                print(f"RAG response content: {result.get('response', 'No response')}")
+                return result
+            except Exception as e:
+                print(f"Error in RAG graph: {e}")
+                return {"error": str(e)}
         
         # Run with timeout
         with concurrent.futures.ThreadPoolExecutor() as executor:
             future = executor.submit(run_rag)
             try:
-                result = future.result(timeout=15)  # 15 second timeout
+                result = future.result(timeout=300)  # Increased timeout to 60 seconds
                 if result and "response" in result:
-                    return result["response"]
+                    response_text = result["response"].strip()
+                    # Limit response length
+                    if len(response_text) > 500:
+                        response_text = response_text[:497] + "..."
+                    return response_text
+                elif result and "error" in result:
+                    return f"Knowledge base error: {result['error']}"
                 else:
                     return "The knowledge base returned an empty response. Please try rephrasing your question."
             except concurrent.futures.TimeoutError:
@@ -450,6 +517,7 @@ def process_midi_file(question: str, filename: str = None) -> str:
             'insights': insights,
             'filename': basic_info.get('filename', 'Unknown')
         }
+        print(f"DEBUG: Set global_midi_analysis: {global_midi_analysis}")
         
         # Return simple confirmation without formatting
         return f"MIDI file analyzed successfully. File: {basic_info.get('filename', 'Unknown')}. Key: {key}. Tempo: {tempo_info.get('primary_tempo', 'Unknown')} BPM. Duration: {basic_info.get('length_seconds', 0):.1f} seconds."
@@ -494,10 +562,6 @@ if tavily_search_tool:
 
 model = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
 model = model.bind_tools(tool_belt)
-
-# Global state for storing analysis data
-global_midi_analysis = {}
-global_lyrics_analysis = {}
 
 # Agent state
 class AgentState(TypedDict):
@@ -636,11 +700,28 @@ When a lyrics file is uploaded and user asks for lyrics help:
 2. SECOND: Call write_lyrics_tool to generate new lyrics
 3. BOTH tools MUST be called - this is not optional
 
-For MIDI-related requests:
-1. If a MIDI file is uploaded, call process_midi_file to analyze it
-2. Use the analysis data in subsequent tool calls
+MANDATORY INSTRUMENT/SAMPLE WORKFLOW:
+When a MIDI file is uploaded and user asks about instruments, samples, or making the song more danceable/poppy:
+1. FIRST: Call process_midi_file to analyze the file (if not already done)
+2. SECOND: Call suggest_instruments_or_samples_tool to provide specific recommendations
+3. BOTH tools MUST be called - this is not optional
 
-FAILURE TO CALL BOTH TOOLS IS NOT ACCEPTABLE. You must call process_lyrics_file AND write_lyrics_tool when lyrics help is requested."""
+MANDATORY RAG WORKFLOW:
+When users ask about DAW functionality, music theory, production techniques, or any music-related educational topics:
+1. ALWAYS call rag_knowledge_base_DAW_tool to search the knowledge base
+2. This tool searches through textbooks and manuals for accurate, educational information
+3. Use this tool for questions about Logic Pro, Ableton, music theory, mixing, mastering, etc.
+
+For arrangement advice:
+1. If MIDI file is uploaded, call process_midi_file first
+2. Then call arrangement_advice_tool with the analysis data
+
+IMPORTANT: 
+- When users ask about instruments, samples, or making songs more danceable/poppy, you MUST call suggest_instruments_or_samples_tool
+- When users ask about DAW functionality, music theory, or production techniques, you MUST call rag_knowledge_base_DAW_tool
+- Do not provide generic advice - use the appropriate tools to get specific, contextual information
+
+FAILURE TO CALL REQUIRED TOOLS IS NOT ACCEPTABLE. You must call the appropriate tools when users ask relevant questions."""
         
         messages.append(SystemMessage(content=system_message))
         
@@ -768,43 +849,60 @@ FAILURE TO CALL BOTH TOOLS IS NOT ACCEPTABLE. You must call process_lyrics_file 
             final_response = model.invoke(messages)
             cleaned_response = clean_markdown(final_response.content)
             
+            # If final response is empty but tools were used, use the tool results directly
+            if not cleaned_response.strip() and tools_used:
+                # Find the most recent tool result from the messages
+                tool_result = None
+                for msg in reversed(messages):
+                    if hasattr(msg, 'content') and msg.content and 'tool' in str(type(msg)).lower():
+                        tool_result = msg.content
+                        break
+                
+                if tool_result and tool_result.strip():
+                    cleaned_response = tool_result.strip()
+                    print(f"DEBUG: Using tool result as response: {cleaned_response[:100]}...")
+                else:
+                    # Fallback responses for specific tools
+                    if 'rag_knowledge_base_DAW_tool' in tools_used:
+                        cleaned_response = "I've searched the knowledge base for you. The information should appear above. If you're not seeing it, please try rephrasing your question."
+                    elif 'suggest_instruments_or_samples_tool' in tools_used:
+                        cleaned_response = "I've analyzed your MIDI file and provided instrument/sample recommendations. The suggestions should appear above. If you're not seeing them, please try asking again."
+                    elif 'process_lyrics_file' in tools_used and 'write_lyrics_tool' not in tools_used:
+                        # Only analysis tool was called, automatically call write_lyrics_tool
+                        print("DEBUG: Only process_lyrics_file was called, automatically calling write_lyrics_tool")
+                        
+                        # Find the write_lyrics_tool
+                        write_lyrics_tool = None
+                        for tool in tool_belt:
+                            if hasattr(tool, 'name') and tool.name == 'write_lyrics_tool':
+                                write_lyrics_tool = tool
+                                break
+                        
+                        if write_lyrics_tool:
+                            # Get the user's original request from the last message
+                            user_request = request.message
+                            try:
+                                # Call write_lyrics_tool with the user's request
+                                lyrics_result = write_lyrics_tool.invoke({'prompt': user_request})
+                                tools_used.append('write_lyrics_tool')
+                                cleaned_response = lyrics_result  # Use the actual lyrics result directly
+                                print(f"DEBUG: Auto-called write_lyrics_tool, result: {lyrics_result}")
+                                print(f"DEBUG: Final cleaned_response: {cleaned_response}")
+                            except Exception as e:
+                                print(f"DEBUG: Error auto-calling write_lyrics_tool: {e}")
+                                cleaned_response = "I've analyzed your lyrics file. Now I need to generate the bridge lyrics for you. Let me do that now."
+                        else:
+                            cleaned_response = "I've analyzed your lyrics file. Now I need to generate the bridge lyrics for you. Let me do that now."
+                    elif 'process_lyrics_file' in tools_used and 'write_lyrics_tool' in tools_used:
+                        # Both tools were called but no response, provide fallback
+                        cleaned_response = "I've analyzed your lyrics and generated new content. The lyrics should appear above. If you're not seeing them, please try asking again."
+                    else:
+                        # Other tools were used but no response
+                        cleaned_response = "I've processed your request. If you're not seeing the results, please try rephrasing your question."
+            
             print(f"DEBUG: Final response content: {final_response.content}")
             print(f"DEBUG: Cleaned response: {cleaned_response}")
             print(f"DEBUG: Tools used: {tools_used}")
-            
-            # If final response is empty but tools were used, create a fallback response
-            if not cleaned_response.strip() and tools_used:
-                if 'process_lyrics_file' in tools_used and 'write_lyrics_tool' not in tools_used:
-                    # Only analysis tool was called, automatically call write_lyrics_tool
-                    print("DEBUG: Only process_lyrics_file was called, automatically calling write_lyrics_tool")
-                    
-                    # Find the write_lyrics_tool
-                    write_lyrics_tool = None
-                    for tool in tool_belt:
-                        if hasattr(tool, 'name') and tool.name == 'write_lyrics_tool':
-                            write_lyrics_tool = tool
-                            break
-                    
-                    if write_lyrics_tool:
-                        # Get the user's original request from the last message
-                        user_request = request.message
-                        try:
-                            # Call write_lyrics_tool with the user's request
-                            lyrics_result = write_lyrics_tool.invoke({'prompt': user_request})
-                            tools_used.append('write_lyrics_tool')
-                            cleaned_response = f"I've analyzed your lyrics and generated the bridge you requested:\n\n{lyrics_result}"
-                            print(f"DEBUG: Auto-called write_lyrics_tool, result: {lyrics_result}")
-                        except Exception as e:
-                            print(f"DEBUG: Error auto-calling write_lyrics_tool: {e}")
-                            cleaned_response = "I've analyzed your lyrics file. Now I need to generate the bridge lyrics for you. Let me do that now."
-                    else:
-                        cleaned_response = "I've analyzed your lyrics file. Now I need to generate the bridge lyrics for you. Let me do that now."
-                elif 'process_lyrics_file' in tools_used and 'write_lyrics_tool' in tools_used:
-                    # Both tools were called but no response, provide fallback
-                    cleaned_response = "I've analyzed your lyrics and generated new content. If you're not seeing the generated lyrics, please try asking again."
-                else:
-                    # Other tools were used but no response
-                    cleaned_response = "I've processed your request. If you're not seeing the results, please try rephrasing your question."
             
             return ChatResponse(
                 response=cleaned_response,

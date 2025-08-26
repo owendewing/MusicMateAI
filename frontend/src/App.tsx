@@ -7,6 +7,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  tools_used?: string[];
 }
 
 interface Tool {
@@ -30,6 +31,7 @@ const App: React.FC = () => {
   const [tools, setTools] = useState<Tool[]>([]);
   const [uploadedFile, setUploadedFile] = useState<string | null>(null);
   const [uploadedFilePath, setUploadedFilePath] = useState<string | null>(null);
+  const [hasUserTyped, setHasUserTyped] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   // Get current messages for selected tab
@@ -59,11 +61,11 @@ const App: React.FC = () => {
 
   const toolIcons: { [key: string]: React.ReactNode } = {
     write_lyrics_tool: <Mic className="w-5 h-5" />,
-    suggest_instruments_tool: <Music2 className="w-5 h-5" />,
-    suggest_sample_packs_tool: <Headphones className="w-5 h-5" />,
+    suggest_instruments_or_samples_tool: <Music2 className="w-5 h-5" />,
+    process_lyrics_file: <Mic className="w-5 h-5" />,
+    process_midi_file: <Music2 className="w-5 h-5" />,
     arrangement_advice_tool: <Layout className="w-5 h-5" />,
-    song_energy_tool: <Zap className="w-5 h-5" />,
-    daw_functionality_tool: <Monitor className="w-5 h-5" />,
+    rag_knowledge_base_DAW_tool: <Monitor className="w-5 h-5" />,
     tavily_search_tool: <Search className="w-5 h-5" />,
   };
 
@@ -94,6 +96,8 @@ const App: React.FC = () => {
   const handleSendMessage = async () => {
     if (!inputMessage.trim() && !uploadedFile) return;
     if (!selectedTab) return;
+    
+    setHasUserTyped(true);
 
     const userMessage: Message = {
       role: 'user',
@@ -137,6 +141,7 @@ const App: React.FC = () => {
         role: 'assistant',
         content: data.response,
         timestamp: new Date(),
+        tools_used: data.tools_used || [],
       };
 
       // Add assistant message to current tab's chat session
@@ -179,12 +184,20 @@ const App: React.FC = () => {
     }
   };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputMessage(e.target.value);
+    if (e.target.value.trim()) {
+      setHasUserTyped(true);
+    }
+  };
+
   const handleTabSelect = (tabId: string) => {
     setSelectedTab(selectedTab === tabId ? null : tabId);
     // Clear input when switching tabs
     setInputMessage('');
     setUploadedFile(null);
     setUploadedFilePath(null);
+    setHasUserTyped(false); // Reset when switching tabs
   };
 
   const handleFileUpload = (fileName: string, filePath?: string) => {
@@ -308,14 +321,75 @@ const App: React.FC = () => {
               </div>
             ) : currentMessages.length === 0 ? (
               <div className="flex items-center justify-center h-full">
-                <div className="text-center text-spotify-light-gray">
-                  <div className="mb-4">
+                <div className="text-center text-spotify-light-gray max-w-2xl">
+                  <div className="mb-6">
                     {tabs.find(tab => tab.id === selectedTab)?.icon || <Music className="w-16 h-16 mx-auto text-spotify-green" />}
                   </div>
-                  <h2 className="text-xl font-semibold mb-2">Start chatting with {tabs.find(tab => tab.id === selectedTab)?.name}</h2>
-                  <p className="text-sm">
-                    Ask questions or upload files to get started! The AI will automatically choose the right tools for your request.
-                  </p>
+                  <h2 className="text-2xl font-semibold mb-4">Welcome to {tabs.find(tab => tab.id === selectedTab)?.name}</h2>
+                  
+                  {!hasUserTyped && (
+                    <>
+                      {selectedTab === 'songwriting' && (
+                        <div className="text-left space-y-4">
+                          <p className="text-base">
+                            Your AI-powered songwriting companion. I can help you write lyrics, develop melodies, 
+                            and find creative inspiration for your songs.
+                          </p>
+                          <div>
+                            <h3 className="font-semibold mb-2">Try asking me:</h3>
+                            <ul className="space-y-1 text-sm">
+                              <li>• "Write lyrics for a pop song about falling in love"</li>
+                              <li>• "Help me finish the bridge of this song"</li>
+                              <li>• "Suggest a melody for a sad ballad"</li>
+                              <li>• "Give me ideas for a catchy chorus"</li>
+                            </ul>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {selectedTab === 'production' && (
+                        <div className="text-left space-y-4">
+                          <p className="text-base">
+                            Your production assistant for instruments, samples, arrangement, and mixing advice. 
+                            Upload MIDI files for personalized recommendations.
+                          </p>
+                          <div>
+                            <h3 className="font-semibold mb-2">Try asking me:</h3>
+                            <ul className="space-y-1 text-sm">
+                              <li>• "Suggest instruments for a jazz track in C major"</li>
+                              <li>• "Help me arrange this song with guitar, bass, and drums"</li>
+                              <li>• "What samples would work for an electronic track?"</li>
+                              <li>• "Analyze the energy curve of my track"</li>
+                            </ul>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {selectedTab === 'daw_theory' && (
+                        <div className="text-left space-y-4">
+                          <p className="text-base">
+                            Your guide to DAW functionality, music theory, and technical production knowledge. 
+                            Get answers about Logic Pro, Ableton, music theory, and more.
+                          </p>
+                          <div>
+                            <h3 className="font-semibold mb-2">Try asking me:</h3>
+                            <ul className="space-y-1 text-sm">
+                              <li>• "How do I use Flex Time in Logic Pro?"</li>
+                              <li>• "What are the chord progressions in C major?"</li>
+                              <li>• "How do I set up a basic mixing chain?"</li>
+                              <li>• "Explain the difference between major and minor scales"</li>
+                            </ul>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                  
+                  {hasUserTyped && (
+                    <p className="text-base">
+                      Ask questions or upload files to get started! The AI will automatically choose the right tools for your request.
+                    </p>
+                  )}
                 </div>
               </div>
             ) : (
@@ -324,47 +398,48 @@ const App: React.FC = () => {
                   key={index}
                   message={message}
                   isLoading={isLoading && index === currentMessages.length - 1}
+                  toolIcons={toolIcons}
                 />
               ))
             )}
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input Area */}
-          <div className="border-t border-spotify-gray p-4 bg-spotify-dark-gray">
-            <div className="flex space-x-3">
-              {selectedTab !== 'daw_theory' && (
-                <FileUpload onFileUpload={handleFileUpload} selectedTab={selectedTab} />
-              )}
-              
-              <div className="flex-1">
-                <textarea
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Ask me about music production..."
-                  className="input-field w-full resize-none"
-                  rows={1}
-                  disabled={isLoading}
-                />
+          {/* Input Area - Only show when assistant is selected */}
+          {selectedTab && (
+            <div className="border-t border-spotify-gray p-4 bg-spotify-dark-gray">
+              <div className="flex space-x-3">
+                {selectedTab !== 'daw_theory' && (
+                  <FileUpload onFileUpload={handleFileUpload} selectedTab={selectedTab} />
+                )}
+                
+                <div className="flex-1">
+                  <textarea
+                    value={inputMessage}
+                    onChange={handleInputChange}
+                    onKeyPress={handleKeyPress}
+                    placeholder="Ask me about music production..."
+                    className="input-field w-full resize-none"
+                    rows={1}
+                    disabled={isLoading}
+                  />
+                </div>
+                
+                <button
+                  onClick={handleSendMessage}
+                  disabled={isLoading || (!inputMessage.trim() && !uploadedFile) || !selectedTab}
+                  className="btn-primary flex items-center space-x-2"
+                >
+                  <Send className="w-5 h-5" />
+                  <span>Send</span>
+                </button>
               </div>
               
-              <button
-                onClick={handleSendMessage}
-                disabled={isLoading || (!inputMessage.trim() && !uploadedFile) || !selectedTab}
-                className="btn-primary flex items-center space-x-2"
-              >
-                <Send className="w-5 h-5" />
-                <span>Send</span>
-              </button>
-            </div>
-            
-            {selectedTab && (
               <div className="mt-2 text-sm text-spotify-light-gray">
                 Assistant: <span className="text-spotify-green">{tabs.find(tab => tab.id === selectedTab)?.name}</span>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

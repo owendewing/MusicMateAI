@@ -5,14 +5,16 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  tools_used?: string[];
 }
 
 interface ChatMessageProps {
   message: Message;
   isLoading?: boolean;
+  toolIcons?: { [key: string]: React.ReactNode };
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLoading = false }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLoading = false, toolIcons = {} }) => {
   const isUser = message.role === 'user';
   
   const formatTime = (date: Date) => {
@@ -62,6 +64,24 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, isLoading = false })
           }`}>
             {formatTime(message.timestamp)}
           </div>
+          
+          {/* Tool Usage Display */}
+          {!isUser && message.tools_used && message.tools_used.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {message.tools_used.map((toolName, index) => (
+                <div key={index} className="flex items-center space-x-1 bg-spotify-dark-gray px-2 py-1 rounded text-xs">
+                  {toolIcons[toolName] && (
+                    <span className="text-spotify-green">
+                      {toolIcons[toolName]}
+                    </span>
+                  )}
+                  <span className="text-spotify-light-gray">
+                    {toolName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

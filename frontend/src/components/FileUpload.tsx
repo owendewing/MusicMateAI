@@ -94,7 +94,13 @@ const FileUpload: React.FC<FileUploadProps> = ({ onFileUpload, selectedTab }) =>
         }`}
       >
         <Upload className="w-4 h-4" />
-        <span>Upload</span>
+        <span>
+          {selectedTab === 'songwriting' 
+            ? 'Upload Lyrics' 
+            : selectedTab === 'production'
+            ? 'Upload MIDI'
+            : 'Upload'}
+        </span>
       </button>
     </div>
   );
