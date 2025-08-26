@@ -20,6 +20,7 @@ import uuid
 from pathlib import Path
 from dotenv import load_dotenv
 from clean_markdown import clean_markdown
+from rag import graph
 
 # Load environment variables
 load_dotenv()
@@ -58,135 +59,123 @@ class ToolInfo(BaseModel):
     requires_file: bool = False
 
 @tool
-def write_lyrics_tool(prompt: str, style: str = None, mood: str = None, artist_reference: str = None) -> str:
+def write_lyrics_tool(prompt: str) -> str:
     """
     Generates lyrics based on a user prompt. Can mimic a specific artist's style, mood, or genre.
     Optionally continues from existing lyrics or expands on a given idea.
+    This tool should be called after process_lyrics_file to generate new lyrics based on the analysis.
+    The generated lyrics can be downloaded as a PDF file.
     """
-    response = f"🎵 **Lyrics Generation**\n\n"
-    response += f"I'll write lyrics for: **{prompt}**\n\n"
-    
-    if style:
-        response += f"**Style:** {style}\n"
-    if mood:
-        response += f"**Mood:** {mood}\n"
-    if artist_reference:
-        response += f"**Inspired by:** {artist_reference}\n"
-    
-    response += "\n---\n\n"
-    response += "**[Verse 1]**\n"
-    response += "Here I am, writing lyrics for you\n"
-    response += "Based on the prompt you gave me\n"
-    response += "With style and mood in mind\n"
-    response += "Creating something unique and true\n\n"
-    
-    response += "**[Chorus]**\n"
-    response += "This is where the magic happens\n"
-    response += "In the words that we create\n"
-    response += "Every line tells a story\n"
-    response += "Every verse opens a gate\n\n"
-    
-    response += "**[Verse 2]**\n"
-    response += "Continuing the journey we began\n"
-    response += "With rhythm and rhyme in hand\n"
-    response += "Building up to something great\n"
-    response += "This is where we make our stand\n\n"
-    
-    response += "*Note: These are sample lyrics. For production-ready lyrics, consider working with a professional songwriter or using more specific prompts.*"
-    
-    return clean_markdown(response)
+    try:
+        # Check if we have lyrics analysis data to work with
+        global global_lyrics_analysis
+        
+        if global_lyrics_analysis:
+            # Use the analyzed lyrics data to inform the generation
+            lyrics_data = global_lyrics_analysis
+            
+            # Create a context-aware prompt
+            context_prompt = f"""
+            Based on the analyzed lyrics file '{lyrics_data['filename']}' with the following characteristics:
+            - Mood: {lyrics_data['mood']}
+            - Structure: {lyrics_data['structure']}
+            
+            User request: {prompt}
+            
+            Generate the actual lyrics based on the user's request. Make it specific and complete. You can ask clarifying questions if needed to better understand their vision.
+            """
+            
+            # Use the LLM to generate contextual lyrics
+            messages = [SystemMessage(content="You are a professional songwriter. Generate complete lyrics based on the user's request. You can ask clarifying questions if needed to better understand their vision.")]
+            messages.append(HumanMessage(content=context_prompt))
+            
+            response = model.invoke(messages)
+            lyrics_content = response.content
+            
+            # Format the response with correction question
+            result = f"""
+{lyrics_content}
+
+Would you like me to make any corrections or changes to these lyrics?
+            """
+            return result
+        else:
+            # No lyrics file analyzed, generate from scratch
+            context_prompt = f"""
+            User request: {prompt}
+            
+            Generate the actual lyrics based on the user's request. Make it specific and complete. You can ask clarifying questions if needed to better understand their vision.
+            """
+            
+            messages = [SystemMessage(content="You are a professional songwriter. Generate complete lyrics based on the user's request. You can ask clarifying questions if needed to better understand their vision.")]
+            messages.append(HumanMessage(content=context_prompt))
+            
+            response = model.invoke(messages)
+            lyrics_content = response.content
+            
+            # Format the response with correction question
+            result = f"""
+{lyrics_content}
+
+Would you like me to make any corrections or changes to these lyrics?
+            """
+            return result
+            
+    except Exception as e:
+        return f"Error generating lyrics: {str(e)}"
 
 @tool
-def suggest_instruments_tool(key: str = None, genre: str = None, project_tracks: list = None, question: str = None) -> str:
+def suggest_instruments_or_samples_tool(key: str = None, genre: str = None, project_tracks: list = None, question: str = None) -> str:
     """
-    Suggests instruments or presets for a song based on key, genre, existing project tracks, and the user's specific question.
-    Returns contextual recommendations based on the query and song characteristics.
+    Suggests instruments, sample packs, or loops for a song based on key, genre, existing project tracks, and the user's specific question.
+    Returns contextual recommendations based on the query and song characteristics. If the user asks for instruments, sample packs, or loops, use this tool.
+    If you find multiple instruments, sample packs, or loops that would work well for the song, format your response as a list of recommendations. If a user
+    has uploaded midi files and asks for instruments, sample packs, or loops, use the processed midi file to suggest instruments, sample packs, or loops.
     """
-    # Use the LLM to generate contextual instrument suggestions
-    prompt = f"""
-    You are a music production expert. Based on the following information, suggest specific instruments and synth presets that would work well for this song:
-
-    Key: {key or 'Unknown'}
-    Genre: {genre or 'Unknown'}
-    Existing tracks: {', '.join(project_tracks) if project_tracks else 'None'}
-    User's question: {question or 'General instrument suggestions'}
-
-    Provide 5-8 specific instrument recommendations and 3-5 preset suggestions that are tailored to this context. 
-    Consider the musical key, genre, existing tracks, and what the user is asking for.
-    Make suggestions that would complement the existing arrangement and address the user's specific needs.
-
-    Format your response as:
-    **Recommended Instruments:**
-    1. [Instrument name] - [Brief reason why it works]
-    2. [Instrument name] - [Brief reason why it works]
-    ...
-
-    **Preset Recommendations:**
-    1. [Preset name] - [Brief description of sound and use]
-    2. [Preset name] - [Brief description of sound and use]
-    ...
-    """
-    
     try:
-        # Use the model to generate contextual suggestions
-        messages = [SystemMessage(content="You are a music production expert who provides specific, contextual instrument and preset recommendations.")]
-        messages.append(HumanMessage(content=prompt))
+        # Check if we have MIDI analysis data to work with
+        global global_midi_analysis
+        
+        # Use MIDI data if available, otherwise use provided parameters
+        if global_midi_analysis:
+            midi_data = global_midi_analysis
+            actual_key = midi_data.get('key', key)
+            actual_tempo = midi_data.get('tempo_info', {}).get('primary_tempo')
+            actual_time_signature = midi_data.get('time_signature')
+            filename = midi_data.get('filename')
+            
+            # Create a context-aware prompt using MIDI data
+            context_prompt = f"""
+            Based on the analyzed MIDI file '{filename}' with the following characteristics:
+            - Key: {actual_key}
+            - Tempo: {actual_tempo} BPM
+            - Time Signature: {actual_time_signature}
+            - Genre: {genre or 'Unknown'}
+            - User question: {question or 'General instrument/sample suggestions'}
+            
+            Please suggest specific instruments, sample packs, or loops that would work well with this musical context.
+            Consider the key, tempo, and style when making recommendations.
+            """
+        else:
+            # No MIDI file analyzed, use provided parameters
+            context_prompt = f"""
+            Based on the following song characteristics:
+            - Key: {key or 'Unknown'}
+            - Genre: {genre or 'Unknown'}
+            - User question: {question or 'General instrument/sample suggestions'}
+            
+            Please suggest specific instruments, sample packs, or loops that would work well for this context.
+            """
+        
+        # Use the LLM to generate contextual suggestions
+        messages = [SystemMessage(content="You are a music production expert who provides specific, contextual instrument and sample recommendations.")]
+        messages.append(HumanMessage(content=context_prompt))
         
         response = model.invoke(messages)
-        result = clean_markdown(response.content)
-        print(f"DEBUG: Instrument tool response: {result}")
-        return result
-    except Exception as e:
-        print(f"DEBUG: Error in instrument tool: {str(e)}")
-        return f"Error generating instrument suggestions: {str(e)}"
-
-@tool
-def suggest_sample_packs_tool(style: str = None, genre: str = None, instrument_focus: str = None, free: str = None, question: str = None) -> str:
-    """
-    Suggests sample packs or loops tailored to the song's style, genre, specific instrument focus, and the user's specific question.
-    Returns contextual recommendations based on the query and song characteristics.
-    """
-    # Use the LLM to generate contextual sample pack suggestions
-    prompt = f"""
-    You are a music production expert. Based on the following information, suggest specific sample packs and loops that would work well for this project:
-
-    Style: {style or 'Unknown'}
-    Genre: {genre or 'Unknown'}
-    Instrument focus: {instrument_focus or 'General'}
-    Budget preference: {'Free samples' if free else 'Premium samples'}
-    User's question: {question or 'General sample pack suggestions'}
-
-    Provide 5-8 specific sample pack recommendations and 3-5 loop suggestions that are tailored to this context.
-    Consider the musical style, genre, instrument focus, budget, and what the user is asking for.
-    Include both free and premium options if appropriate, and explain why each suggestion would work well.
-
-    Format your response as:
-    **Sample Pack Recommendations:**
-    1. [Sample pack name] - [Brief description and why it fits]
-    2. [Sample pack name] - [Brief description and why it fits]
-    ...
-
-    **Loop Recommendations:**
-    1. [Loop type/name] - [Brief description and use case]
-    2. [Loop type/name] - [Brief description and use case]
-    ...
-
-    **Additional Resources:**
-    - [Any additional resources or tips]
-    """
-    
-    try:
-        # Use the model to generate contextual suggestions
-        messages = [SystemMessage(content="You are a music production expert who provides specific, contextual sample pack and loop recommendations.")]
-        messages.append(HumanMessage(content=prompt))
+        return response.content
         
-        response = model.invoke(messages)
-        result = clean_markdown(response.content)
-        print(f"DEBUG: Sample pack tool response: {result}")
-        return result
     except Exception as e:
-        print(f"DEBUG: Error in sample pack tool: {str(e)}")
-        return f"Error generating sample pack suggestions: {str(e)}"
+        return f"Error generating instrument/sample suggestions: {str(e)}"
 
 @tool
 def arrangement_advice_tool(project_summary: str, target_style: str = None, mood: str = None) -> str:
@@ -194,150 +183,115 @@ def arrangement_advice_tool(project_summary: str, target_style: str = None, mood
     Provides arrangement suggestions for a song. Can suggest bridges, breakdowns, drops, or track layering ideas.
     Input: textual summary of project (track types, key, tempo, etc.)
     """
-    response = f"🎼 **Arrangement Advice**\n\n"
-    response += f"**Project Summary:** {project_summary}\n"
-    
-    if target_style:
-        response += f"**Target Style:** {target_style}\n"
-    if mood:
-        response += f"**Mood:** {mood}\n"
-    
-    response += "\n---\n\n"
-    response += "**Suggested Arrangement Structure:**\n\n"
-    
-    response += "**Intro (0:00-0:30)**\n"
-    response += "- Start with a hook or atmospheric element\n"
-    response += "- Build anticipation with filtered sounds\n"
-    response += "- Introduce main melody subtly\n\n"
-    
-    response += "**Verse 1 (0:30-1:00)**\n"
-    response += "- Bring in main instruments\n"
-    response += "- Establish groove and rhythm\n"
-    response += "- Keep energy moderate\n\n"
-    
-    response += "**Chorus (1:00-1:30)**\n"
-    response += "- Full arrangement with all elements\n"
-    response += "- Strong melodic hook\n"
-    response += "- Maximum energy and impact\n\n"
-    
-    response += "**Verse 2 (1:30-2:00)**\n"
-    response += "- Add variation to verse 1\n"
-    response += "- Introduce new elements\n"
-    response += "- Build towards bridge\n\n"
-    
-    response += "**Bridge (2:00-2:30)**\n"
-    response += "- Contrast section with different feel\n"
-    response += "- Could be instrumental or vocal\n"
-    response += "- Create tension before final chorus\n\n"
-    
-    response += "**Final Chorus (2:30-3:00)**\n"
-    response += "- Most powerful version\n"
-    response += "- Add extra layers and energy\n"
-    response += "- Strong ending\n\n"
-    
-    response += "**Outro (3:00-3:30)**\n"
-    response += "- Gradual fade or strong ending\n"
-    response += "- Could repeat hook or create new ending\n"
-    
-    return clean_markdown(response)
+    try:
+        # Check if we have analysis data to work with
+        global global_midi_analysis, global_lyrics_analysis
+        
+        # Build context from available data
+        context_parts = []
+        
+        if global_midi_analysis:
+            midi_data = global_midi_analysis
+            context_parts.append(f"""
+            MIDI Analysis Data:
+            - File: {midi_data.get('filename')}
+            - Key: {midi_data.get('key')}
+            - Tempo: {midi_data.get('tempo_info', {}).get('primary_tempo')} BPM
+            - Time Signature: {midi_data.get('time_signature')}
+            - Duration: {midi_data.get('basic_info', {}).get('length_seconds', 0):.1f} seconds
+            - Tracks: {midi_data.get('basic_info', {}).get('number_of_tracks', 0)}
+            """)
+        
+        if global_lyrics_analysis:
+            lyrics_data = global_lyrics_analysis
+            context_parts.append(f"""
+            Lyrics Analysis Data:
+            - File: {lyrics_data.get('filename')}
+            - Mood: {lyrics_data.get('mood')}
+            - Structure: {lyrics_data.get('structure')}
+            - Word count: {lyrics_data.get('word_count')}
+            """)
+        
+        # Create comprehensive context
+        if context_parts:
+            context = "\n".join(context_parts)
+            full_prompt = f"""
+            Based on the following analysis data:
+            {context}
+            
+            Project Summary: {project_summary}
+            Target Style: {target_style or 'Not specified'}
+            Mood: {mood or 'Not specified'}
+            
+            Please provide specific arrangement suggestions including:
+            - Song structure recommendations
+            - Bridge and breakdown ideas
+            - Track layering suggestions
+            - Energy curve recommendations
+            - Transition ideas between sections
+            """
+        else:
+            # No analysis data available, use basic prompt
+            full_prompt = f"""
+            Project Summary: {project_summary}
+            Target Style: {target_style or 'Not specified'}
+            Mood: {mood or 'Not specified'}
+            
+            Please provide arrangement suggestions for this song.
+            """
+        
+        # Use the LLM to generate arrangement advice
+        messages = [SystemMessage(content="You are a music production expert who provides detailed arrangement and structure advice for songs.")]
+        messages.append(HumanMessage(content=full_prompt))
+        
+        response = model.invoke(messages)
+        return response.content
+        
+    except Exception as e:
+        return f"Error generating arrangement advice: {str(e)}"
+
 
 @tool
-def song_energy_tool(project_summary: str) -> str:
+def process_lyrics_file(question: str, filename: str = None) -> str:
     """
-    Analyzes energy or intensity curves of a song based on project summary or MIDI snippet.
-    Gives actionable suggestions for dynamics, tension, and release.
-    """
-    response = f"⚡ **Song Energy Analysis**\n\n"
-    response += f"**Project Summary:** {project_summary}\n"
-    
-    response += "\n---\n\n"
-    response += "**Energy Curve Recommendations:**\n\n"
-    
-    response += "**0:00-0:30 (Intro) - Energy Level: 3/10**\n"
-    response += "- Start with atmospheric elements\n"
-    response += "- Use filtered sounds and pads\n"
-    response += "- Build anticipation gradually\n\n"
-    
-    response += "**0:30-1:00 (Verse 1) - Energy Level: 5/10**\n"
-    response += "- Introduce main instruments\n"
-    response += "- Establish groove without overwhelming\n"
-    response += "- Keep vocals clear and prominent\n\n"
-    
-    response += "**1:00-1:30 (Chorus) - Energy Level: 8/10**\n"
-    response += "- Full arrangement with all elements\n"
-    response += "- Strong melodic hooks\n"
-    response += "- Maximum impact and energy\n\n"
-    
-    response += "**1:30-2:00 (Verse 2) - Energy Level: 6/10**\n"
-    response += "- Slightly higher than verse 1\n"
-    response += "- Add new elements or variations\n"
-    response += "- Build tension towards bridge\n\n"
-    
-    response += "**2:00-2:30 (Bridge) - Energy Level: 4/10**\n"
-    response += "- Contrast section with lower energy\n"
-    response += "- Could be stripped down or different feel\n"
-    response += "- Create tension and anticipation\n\n"
-    
-    response += "**2:30-3:00 (Final Chorus) - Energy Level: 10/10**\n"
-    response += "- Most powerful version of chorus\n"
-    response += "- Add extra layers, harmonies, effects\n"
-    response += "- Strong, memorable ending\n\n"
-    
-    response += "**Dynamics Tips:**\n"
-    response += "- Use automation for volume and effects\n"
-    response += "- Add risers and impacts for transitions\n"
-    response += "- Vary drum patterns between sections\n"
-    response += "- Use filter sweeps and modulation\n"
-    
-    return clean_markdown(response)
-
-@tool
-def analyze_uploaded_file(question: str, filename: str = None) -> str:
-    """
-    Expert tool that analyzes uploaded files and provides insights.
-    Use this when users ask about uploaded files, lyrics, or document content.
+    Expert tool that analyzes uploaded lyrics files. If the user has uploaded a lyrics file, use this tool to break down the lyrics into sections, 
+    such as verses, choruses, bridges, and drops. Identify characteristics of the lyrics, such as the style, mood, and structure of the lyrics.
+    Identify areas where the lyrics could be improved, such as rhyme scheme, word choice, and overall structure, or areas that are unfinished. 
+    This tool should be called first to analyze the lyrics, then the write_lyrics_tool should be called to generate new lyrics based on the analysis.
     """
     try:
-        # Find uploaded files
+        print(f"DEBUG: process_lyrics_file called with filename: {filename}")
+        print(f"DEBUG: process_lyrics_file called with question: {question}")
+        # Find the uploaded lyrics file
         upload_dir = Path("uploads")
         
         if filename:
-            # Use the specific filename if provided
-            uploaded_file = upload_dir / filename
-            if not uploaded_file.exists():
-                return f"File '{filename}' not found in uploads directory."
+            lyrics_file = upload_dir / filename
+            if not lyrics_file.exists():
+                return f"Lyrics file '{filename}' not found in uploads directory."
         else:
-            # Fallback to most recent file
-            pdf_files = list(upload_dir.glob("*.pdf"))
-            txt_files = list(upload_dir.glob("*.txt"))
+            # Use the most recently uploaded lyrics file
+            lyrics_files = list(upload_dir.glob("*.txt")) + list(upload_dir.glob("*.pdf"))
+            if not lyrics_files:
+                return "No lyrics files found in uploads directory. Please upload a lyrics file first."
             
-            if not pdf_files and not txt_files:
-                return "No PDF or text files found in uploads directory. Please upload a file first."
-            
-            # Use the most recent file
-            uploaded_file = None
-            if pdf_files:
-                uploaded_file = pdf_files[-1]
-            elif txt_files:
-                uploaded_file = txt_files[-1]
-            
-            if not uploaded_file:
-                return "No supported files found for analysis."
+            lyrics_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+            lyrics_file = lyrics_files[0]
         
         # Extract text from file
         file_content = ""
-        if uploaded_file.suffix.lower() == '.pdf':
+        if lyrics_file.suffix.lower() == '.pdf':
             try:
                 import PyPDF2
-                with open(uploaded_file, 'rb') as file:
+                with open(lyrics_file, 'rb') as file:
                     pdf_reader = PyPDF2.PdfReader(file)
                     for page in pdf_reader.pages:
                         file_content += page.extract_text() + "\n"
             except Exception as e:
                 return f"Error reading PDF file: {str(e)}"
-        elif uploaded_file.suffix.lower() == '.txt':
+        elif lyrics_file.suffix.lower() == '.txt':
             try:
-                with open(uploaded_file, 'r', encoding='utf-8') as file:
+                with open(lyrics_file, 'r', encoding='utf-8') as file:
                     file_content = file.read()
             except Exception as e:
                 return f"Error reading text file: {str(e)}"
@@ -345,157 +299,87 @@ def analyze_uploaded_file(question: str, filename: str = None) -> str:
         if not file_content.strip():
             return "File appears to be empty or unreadable."
         
-        # Analyze content
+        # Analyze lyrics content
         lines = file_content.split('\n')
         word_count = len(file_content.split())
         line_count = len(lines)
         
-        # Look for common songwriting patterns
+        # Look for song structure patterns
         has_verse = any('verse' in line.lower() for line in lines)
         has_chorus = any('chorus' in line.lower() for line in lines)
         has_bridge = any('bridge' in line.lower() for line in lines)
+        has_drop = any('drop' in line.lower() for line in lines)
         
-        # Simple sentiment analysis
-        positive_words = ['love', 'happy', 'joy', 'beautiful', 'wonderful', 'amazing', 'great']
-        negative_words = ['sad', 'pain', 'hurt', 'lonely', 'dark', 'angry', 'fear']
         
-        positive_count = sum(1 for word in file_content.lower().split() if word in positive_words)
-        negative_count = sum(1 for word in file_content.lower().split() if word in negative_words)
+        # Store analysis data globally for other tools to use
+        global global_lyrics_analysis
+        global_lyrics_analysis = {
+            'filename': lyrics_file.name,
+            'word_count': word_count,
+            'line_count': line_count,
+            'has_verse': has_verse,
+            'has_chorus': has_chorus,
+            'has_bridge': has_bridge,
+            'has_drop': has_drop,
+            'content': file_content,
+            'structure': {
+                'verses': has_verse,
+                'choruses': has_chorus,
+                'bridges': has_bridge,
+                'drops': has_drop
+            }
+        }
         
-        response = f"📄 **File Analysis for: {question}**\n\n"
-        response += f"**File:** {uploaded_file.name}\n\n"
-        
-        response += "**Content Overview:**\n"
-        response += f"- **Word Count:** {word_count} words\n"
-        response += f"- **Lines:** {line_count} lines\n"
-        response += f"- **File Type:** {uploaded_file.suffix.upper()}\n\n"
-        
-        response += "**Structure Analysis:**\n"
-        if has_verse:
-            response += "- Contains verse sections\n"
-        if has_chorus:
-            response += "- Contains chorus sections\n"
-        if has_bridge:
-            response += "- Contains bridge sections\n"
-        if not (has_verse or has_chorus or has_bridge):
-            response += "- No clear song structure markers found\n"
-        response += "\n"
-        
-        response += "**Content Analysis:**\n"
-        if positive_count > negative_count:
-            response += "- Overall positive emotional tone\n"
-        elif negative_count > positive_count:
-            response += "- Overall introspective or emotional tone\n"
-        else:
-            response += "- Balanced emotional content\n"
-        
-        # Provide suggestions based on content
-        response += "\n**Songwriting Suggestions:**\n"
-        if not has_chorus:
-            response += "- Consider adding a strong chorus for memorability\n"
-        if not has_bridge:
-            response += "- A bridge section could add contrast and interest\n"
-        if word_count < 100:
-            response += "- Content is concise - consider expanding on themes\n"
-        elif word_count > 500:
-            response += "- Rich content - consider editing for focus\n"
-        
-        response += "- Review rhyming patterns for consistency\n"
-        response += "- Ensure emotional arc flows naturally\n"
-        
-        return clean_markdown(response)
+        # Return detailed analysis for the write_lyrics_tool to use
+        result = f"""
+Lyrics Analysis Complete:
+
+File: {lyrics_file.name}
+Structure: {'Has' if has_verse else 'No'} verses, {'Has' if has_chorus else 'No'} choruses, {'Has' if has_bridge else 'No'} bridges
+Word Count: {word_count}
+Lines: {line_count}
+
+
+The lyrics have been analyzed and are ready for the write_lyrics_tool to generate new content based on this analysis.
+        """
+        print(f"DEBUG: process_lyrics_file returning: {result}")
+        return result
         
     except Exception as e:
-        return f"Error analyzing uploaded file: {str(e)}"
+        return f"Error analyzing lyrics file: {str(e)}"
 
 @tool
-def daw_functionality_tool(daw_name: str = None, feature: str = None, task: str = None) -> str:
+def rag_knowledge_base_DAW_tool(question: str) -> str:
     """
-    Explains DAW functionality and features. Can provide tutorials, tips, and workflow advice for Logic Pro, Ableton, GarageBand, Audacity, and other DAWs.
+    Query the music production knowledge base for information about DAWs, music theory, 
+    production techniques, and other music-related topics. This tool searches through 
+    textbooks and manuals to provide accurate, educational information.
     """
-    response = f"💻 **DAW Functionality Guide**\n\n"
-    
-    if daw_name:
-        response += f"**DAW:** {daw_name}\n"
-    if feature:
-        response += f"**Feature:** {feature}\n"
-    if task:
-        response += f"**Task:** {task}\n"
-    
-    response += "\n---\n\n"
-    
-    if daw_name and "logic" in daw_name.lower():
-        response += "**Logic Pro X Tips:**\n\n"
-        response += "**Key Features:**\n"
-        response += "- **Flex Time:** Time-stretch audio without artifacts\n"
-        response += "- **Flex Pitch:** Auto-tune and pitch correction\n"
-        response += "- **Smart Tempo:** Automatic tempo detection\n"
-        response += "- **Alchemy:** Advanced synthesizer\n\n"
-        response += "**Workflow Tips:**\n"
-        response += "- Use Track Stacks for organization\n"
-        response += "- Leverage Smart Controls for quick access\n"
-        response += "- Use the Environment for complex routing\n"
-        response += "- Take advantage of the Score Editor\n\n"
+    try:
+        # Use the RAG graph to get response with timeout
+        import asyncio
+        import concurrent.futures
         
-    elif daw_name and "ableton" in daw_name.lower():
-        response += "**Ableton Live Tips:**\n\n"
-        response += "**Key Features:**\n"
-        response += "- **Session View:** Clip-based arrangement\n"
-        response += "- **Arrangement View:** Traditional timeline\n"
-        response += "- **Max for Live:** Custom devices\n"
-        response += "- **Warping:** Advanced time-stretching\n\n"
-        response += "**Workflow Tips:**\n"
-        response += "- Use Session View for live performance\n"
-        response += "- Leverage the browser for quick access\n"
-        response += "- Use automation curves for smooth changes\n"
-        response += "- Take advantage of the Push controller\n\n"
+        def run_rag():
+            return graph.invoke({"question": question})
         
-    elif daw_name and "garageband" in daw_name.lower():
-        response += "**GarageBand Tips:**\n\n"
-        response += "**Key Features:**\n"
-        response += "- **Smart Instruments:** AI-assisted playing\n"
-        response += "- **Drummer:** Virtual drummers\n"
-        response += "- **Live Loops:** iOS-style loop creation\n"
-        response += "- **Free Sound Library:** Apple's sample collection\n\n"
-        response += "**Workflow Tips:**\n"
-        response += "- Use Smart Controls for easy mixing\n"
-        response += "- Leverage the Drummer for realistic drums\n"
-        response += "- Use Live Loops for electronic music\n"
-        response += "- Take advantage of the free sound library\n\n"
-        
-    else:
-        response += "**General DAW Tips:**\n\n"
-        response += "**Essential Features:**\n"
-        response += "- **MIDI Recording:** Capture performances\n"
-        response += "- **Audio Recording:** Multi-track recording\n"
-        response += "- **Mixing Console:** Level and pan control\n"
-        response += "- **Effects Processing:** Reverb, delay, compression\n\n"
-        response += "**Workflow Tips:**\n"
-        response += "- Use keyboard shortcuts for efficiency\n"
-        response += "- Organize tracks with color coding\n"
-        response += "- Save multiple versions of your project\n"
-        response += "- Use templates for consistent workflow\n\n"
-    
-    if feature:
-        response += f"**Specific Feature: {feature}**\n"
-        response += "- This feature helps with audio processing\n"
-        response += "- Common use cases include mixing and mastering\n"
-        response += "- Check the DAW's manual for detailed instructions\n\n"
-    
-    if task:
-        response += f"**Task: {task}**\n"
-        response += "- This task can be accomplished using multiple methods\n"
-        response += "- Consider the context and desired outcome\n"
-        response += "- Experiment with different approaches\n"
-    
-    return clean_markdown(response)
+        # Run with timeout
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(run_rag)
+            try:
+                result = future.result(timeout=15)  # 15 second timeout
+                if result and "response" in result:
+                    return result["response"]
+                else:
+                    return "The knowledge base returned an empty response. Please try rephrasing your question."
+            except concurrent.futures.TimeoutError:
+                return "The knowledge base query timed out. Please try rephrasing your question or ask about a different topic."
+            except Exception as e:
+                return f"Error querying knowledge base: {str(e)}"
+                
+    except Exception as e:
+        return f"Error querying knowledge base: {str(e)}"
 
-# def _midi_note_to_name(note_number):
-#     """Convert MIDI note number to note name"""
-#     note_names = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B']
-#     octave = (note_number // 12) - 1
-#     note_name = note_names[note_number % 12]
-#     return f"{note_name}{octave}"
 
 @tool
 def process_midi_file(question: str, filename: str = None) -> str:
@@ -520,48 +404,15 @@ def process_midi_file(question: str, filename: str = None) -> str:
                 return f"MIDI file '{filename}' not found in uploads directory."
             print(f"DEBUG: Found file: {midi_file}")
         else:
-            # Try to find the most recently uploaded file by checking file modification times
+            # Use the most recently uploaded file
             midi_files = list(upload_dir.glob("*.mid")) + list(upload_dir.glob("*.midi"))
             if not midi_files:
                 return "No MIDI files found in uploads directory. Please upload a MIDI file first."
             
-            # Look for files that might match the context first
-            question_lower = question.lower()
-            matching_files = []
-            
-            for file in midi_files:
-                file_lower = file.name.lower()
-                if any(word in file_lower for word in ['coldplay', 'viva', 'vida'] if word in question_lower):
-                    matching_files.append(file)
-                elif any(word in file_lower for word in ['mario', 'bros', 'super'] if word in question_lower):
-                    matching_files.append(file)
-                elif any(word in file_lower for word in ['running'] if word in question_lower):
-                    matching_files.append(file)
-                elif any(word in file_lower for word in ['giorno'] if word in question_lower):
-                    matching_files.append(file)
-                elif any(word in file_lower for word in ['queen', 'bohemian', 'rhapsody'] if word in question_lower):
-                    matching_files.append(file)
-                elif any(word in file_lower for word in ['star', 'wars'] if word in question_lower):
-                    matching_files.append(file)
-                elif any(word in file_lower for word in ['imagine', 'dragons', 'radioactive'] if word in question_lower):
-                    matching_files.append(file)
-            
-            if matching_files:
-                midi_file = matching_files[0]
-                print(f"DEBUG: Found matching file: {midi_file}")
-            else:
-                # If no keyword match, use the most recently modified file
-                # This assumes the most recently uploaded file is the one we want to analyze
-                midi_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
-                midi_file = midi_files[0]
-                print(f"DEBUG: Using most recently modified file: {midi_file}")
-                print(f"DEBUG: File modification time: {midi_file.stat().st_mtime}")
-                print(f"DEBUG: All available files and their modification times:")
-                for file in midi_files[:5]:  # Show top 5 most recent
-                    print(f"  - {file.name}: {file.stat().st_mtime}")
-                
-                # Add a note that we're using the most recent file
-                print(f"DEBUG: No specific filename found, using most recent file: {midi_file.name}")
+            # Use the most recently modified file
+            midi_files.sort(key=lambda x: x.stat().st_mtime, reverse=True)
+            midi_file = midi_files[0]
+            print(f"DEBUG: Using most recently uploaded file: {midi_file.name}")
         
         # Import and use MIDIProcessor
         from midi_processor import MIDIProcessor
@@ -588,33 +439,20 @@ def process_midi_file(question: str, filename: str = None) -> str:
             note_name = most_common[:-1] if most_common[-1].isdigit() else most_common
             key = f"{note_name} Major" if note_name in ['C', 'G', 'D', 'A', 'E', 'B', 'F#'] else f"{note_name} Minor"
         
-        response = f"🎵 **MIDI Analysis for: {question}**\n\n"
-        response += f"**File:** {basic_info.get('filename', 'Unknown')}\n\n"
+        # Store analysis data globally for other tools to use
+        global global_midi_analysis
+        global_midi_analysis = {
+            'basic_info': basic_info,
+            'tempo_info': tempo_info,
+            'notes_info': notes_info,
+            'key': key,
+            'time_signature': analysis.get('time_signatures', {}).get('primary_time_signature', '4/4'),
+            'insights': insights,
+            'filename': basic_info.get('filename', 'Unknown')
+        }
         
-        response += "**Musical Elements:**\n"
-        if tempo_info.get('primary_tempo'):
-            response += f"- **Tempo:** {tempo_info['primary_tempo']:.1f} BPM"
-            if tempo_info.get('tempo_changes', 0) > 1:
-                response += f" (with {tempo_info['tempo_changes']} tempo changes)"
-            response += "\n"
-        else:
-            response += "- **Tempo:** Unknown\n"
-        
-        response += f"- **Key:** {key}\n"
-        response += f"- **Time Signature:** {analysis.get('time_signatures', {}).get('primary_time_signature', '4/4')}\n"
-        response += f"- **Duration:** {basic_info.get('length_seconds', 0):.1f} seconds\n"
-        response += f"- **Tracks:** {basic_info.get('number_of_tracks', 0)}\n\n"
-        
-        if notes_info.get('total_notes', 0) > 0:
-            response += "**Note Analysis:**\n"
-            response += f"- **Total Notes:** {notes_info['total_notes']}\n"
-            response += f"- **Pitch Range:** {notes_info['pitch_range']['min']} - {notes_info['pitch_range']['max']}\n"
-            response += f"- **Average Velocity:** {notes_info['velocity_stats']['average']:.1f}\n"
-            response += f"- **Unique Pitches:** {notes_info['unique_pitches']}\n\n"
-        
-
-        
-        return clean_markdown(response)
+        # Return simple confirmation without formatting
+        return f"MIDI file analyzed successfully. File: {basic_info.get('filename', 'Unknown')}. Key: {key}. Tempo: {tempo_info.get('primary_tempo', 'Unknown')} BPM. Duration: {basic_info.get('length_seconds', 0):.1f} seconds."
         
     except Exception as e:
         return f"Error processing MIDI file: {str(e)}"
@@ -629,13 +467,11 @@ except Exception as e:
 # Tool belt
 tool_belt = [
     write_lyrics_tool, 
-    suggest_instruments_tool, 
-    suggest_sample_packs_tool, 
+    suggest_instruments_or_samples_tool, 
     arrangement_advice_tool, 
-    song_energy_tool,
-    daw_functionality_tool,
     process_midi_file,
-    analyze_uploaded_file,
+    process_lyrics_file,
+    rag_knowledge_base_DAW_tool,
 ]
 
 # Add Tavily search tool if available
@@ -645,13 +481,11 @@ if tavily_search_tool:
 # Tool information for frontend
 available_tools = [
     ToolInfo(name="write_lyrics_tool", description="Generate lyrics based on prompts, style, mood, or artist references"),
-    ToolInfo(name="suggest_instruments_tool", description="Get instrument and synth preset recommendations"),
-    ToolInfo(name="suggest_sample_packs_tool", description="Find sample packs and loops for your project"),
+    ToolInfo(name="suggest_instruments_or_samples_tool", description="Get instrument and synth preset recommendations"),
     ToolInfo(name="arrangement_advice_tool", description="Get song arrangement and structure suggestions"),
-    ToolInfo(name="song_energy_tool", description="Analyze and improve song energy curves"),
-    ToolInfo(name="daw_functionality_tool", description="Learn DAW features and get workflow tips"),
     ToolInfo(name="process_midi_file", description="Analyze MIDI files and provide musical insights"),
-    ToolInfo(name="analyze_uploaded_file", description="Analyze uploaded files and provide insights"),
+    ToolInfo(name="process_lyrics_file", description="Analyze uploaded lyrics files and pass the information to the write_lyrics_tool"),
+    ToolInfo(name="rag_knowledge_base_DAW_tool", description="Search the music production knowledge base for information about DAWs, music theory, production techniques, and other music-related topics"),
 ]
 
 # Add Tavily search tool info if available
@@ -660,6 +494,10 @@ if tavily_search_tool:
 
 model = ChatOpenAI(model="gpt-4o-mini", temperature=0.7)
 model = model.bind_tools(tool_belt)
+
+# Global state for storing analysis data
+global_midi_analysis = {}
+global_lyrics_analysis = {}
 
 # Agent state
 class AgentState(TypedDict):
@@ -789,6 +627,23 @@ async def chat(request: ChatRequest):
         
         messages = []
         
+        # Add system message to guide the AI
+        system_message = """You are a music production AI assistant with access to specialized tools. 
+
+MANDATORY LYRICS WORKFLOW:
+When a lyrics file is uploaded and user asks for lyrics help:
+1. FIRST: Call process_lyrics_file to analyze the file
+2. SECOND: Call write_lyrics_tool to generate new lyrics
+3. BOTH tools MUST be called - this is not optional
+
+For MIDI-related requests:
+1. If a MIDI file is uploaded, call process_midi_file to analyze it
+2. Use the analysis data in subsequent tool calls
+
+FAILURE TO CALL BOTH TOOLS IS NOT ACCEPTABLE. You must call process_lyrics_file AND write_lyrics_tool when lyrics help is requested."""
+        
+        messages.append(SystemMessage(content=system_message))
+        
         for msg in request.history:
             if msg.role == "user":
                 messages.append(HumanMessage(content=msg.content))
@@ -848,37 +703,47 @@ async def chat(request: ChatRequest):
                         # For LangChain tools, we need to pass the input as a string or dict
                         if len(tool_args) == 1 and 'question' in tool_args:
                             # Add filename to tool arguments if available
-                            if uploaded_filename and tool_name in ['process_midi_file', 'analyze_uploaded_file']:
+                            if uploaded_filename and tool_name in ['process_midi_file', 'process_lyrics_file']:
                                 tool_args['filename'] = uploaded_filename
                                 print(f"DEBUG: Added filename '{uploaded_filename}' to tool '{tool_name}'")
                             # Add question to instrument and sample pack tools for contextual suggestions
-                            elif tool_name in ['suggest_instruments_tool', 'suggest_sample_packs_tool']:
+                            elif tool_name in ['suggest_instruments_or_samples_tool']:
                                 tool_args['question'] = tool_args['question']
                                 print(f"DEBUG: Added question to tool '{tool_name}' for contextual suggestions")
                             else:
                                 print(f"DEBUG: No filename added to tool '{tool_name}', uploaded_filename: {uploaded_filename}")
                             tool_result = tool_to_use.invoke(tool_args)
+                        elif len(tool_args) == 2 and 'question' in tool_args and 'filename' in tool_args:
+                            # Tool already has both question and filename, invoke directly
+                            print(f"DEBUG: Tool '{tool_name}' has both question and filename, invoking directly")
+                            tool_result = tool_to_use.invoke(tool_args)
                         else:
                             tool_result = tool_to_use.invoke(str(tool_args))
                     else:
                         # If tool_args is a string, create a dict with the question and filename
-                        if uploaded_filename and tool_name in ['process_midi_file', 'analyze_uploaded_file']:
+                        if uploaded_filename and tool_name in ['process_midi_file', 'process_lyrics_file']:
                             tool_args_dict = {'question': tool_args, 'filename': uploaded_filename}
                             print(f"DEBUG: Created dict with filename '{uploaded_filename}' for tool '{tool_name}'")
                             tool_result = tool_to_use.invoke(tool_args_dict)
-                        elif tool_name in ['suggest_instruments_tool', 'suggest_sample_packs_tool']:
+                        elif tool_name in ['suggest_instruments_or_samples_tool']:
                             # For instrument and sample pack tools, pass the question for contextual suggestions
                             tool_args_dict = {'question': tool_args}
                             print(f"DEBUG: Created dict with question for tool '{tool_name}'")
                             tool_result = tool_to_use.invoke(tool_args_dict)
                         else:
                             # Even if no uploaded_filename, try to create a dict for the tool
-                            if tool_name in ['process_midi_file', 'analyze_uploaded_file']:
+                            if tool_name in ['process_midi_file', 'process_lyrics_file']:
                                 tool_args_dict = {'question': tool_args}
                                 print(f"DEBUG: Created dict without filename for tool '{tool_name}'")
                                 tool_result = tool_to_use.invoke(tool_args_dict)
                             else:
                                 tool_result = tool_to_use.invoke(tool_args)
+                    
+                    # Check if tool result is empty or None
+                    if not tool_result or str(tool_result).strip() == "":
+                        print(f"DEBUG: Tool '{tool_name}' returned empty result")
+                        tool_result = f"Tool '{tool_name}' completed but returned no content. Please try rephrasing your request."
+                    
                     tools_used.append(tool_name)
                     
                     # Create a proper tool message
@@ -902,6 +767,44 @@ async def chat(request: ChatRequest):
             # Get final response after all tools are executed
             final_response = model.invoke(messages)
             cleaned_response = clean_markdown(final_response.content)
+            
+            print(f"DEBUG: Final response content: {final_response.content}")
+            print(f"DEBUG: Cleaned response: {cleaned_response}")
+            print(f"DEBUG: Tools used: {tools_used}")
+            
+            # If final response is empty but tools were used, create a fallback response
+            if not cleaned_response.strip() and tools_used:
+                if 'process_lyrics_file' in tools_used and 'write_lyrics_tool' not in tools_used:
+                    # Only analysis tool was called, automatically call write_lyrics_tool
+                    print("DEBUG: Only process_lyrics_file was called, automatically calling write_lyrics_tool")
+                    
+                    # Find the write_lyrics_tool
+                    write_lyrics_tool = None
+                    for tool in tool_belt:
+                        if hasattr(tool, 'name') and tool.name == 'write_lyrics_tool':
+                            write_lyrics_tool = tool
+                            break
+                    
+                    if write_lyrics_tool:
+                        # Get the user's original request from the last message
+                        user_request = request.message
+                        try:
+                            # Call write_lyrics_tool with the user's request
+                            lyrics_result = write_lyrics_tool.invoke({'prompt': user_request})
+                            tools_used.append('write_lyrics_tool')
+                            cleaned_response = f"I've analyzed your lyrics and generated the bridge you requested:\n\n{lyrics_result}"
+                            print(f"DEBUG: Auto-called write_lyrics_tool, result: {lyrics_result}")
+                        except Exception as e:
+                            print(f"DEBUG: Error auto-calling write_lyrics_tool: {e}")
+                            cleaned_response = "I've analyzed your lyrics file. Now I need to generate the bridge lyrics for you. Let me do that now."
+                    else:
+                        cleaned_response = "I've analyzed your lyrics file. Now I need to generate the bridge lyrics for you. Let me do that now."
+                elif 'process_lyrics_file' in tools_used and 'write_lyrics_tool' in tools_used:
+                    # Both tools were called but no response, provide fallback
+                    cleaned_response = "I've analyzed your lyrics and generated new content. If you're not seeing the generated lyrics, please try asking again."
+                else:
+                    # Other tools were used but no response
+                    cleaned_response = "I've processed your request. If you're not seeing the results, please try rephrasing your question."
             
             return ChatResponse(
                 response=cleaned_response,

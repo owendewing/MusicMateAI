@@ -9,9 +9,9 @@ A full-stack AI assistant for music producers, featuring a chat interface with s
 - **Instrument Suggestions**: Get recommendations for instruments and synth presets
 - **Sample Pack Recommendations**: Find the perfect samples and loops for your project
 - **Arrangement Advice**: Get song structure and arrangement suggestions
-- **Song Energy Analysis**: Analyze and improve energy curves and dynamics
-- **DAW Functionality Guide**: Learn features and get workflow tips for Logic Pro, Ableton, GarageBand, and more
+- **DAW Knowledge Base**: Advanced RAG system with music production manuals and textbooks
 - **Web Search**: Search for music production information and tutorials
+- **Advanced Retrieval**: Contextual compression and parent document retrieval techniques
 
 ### 🎨 UI/UX
 - **Spotify-inspired Design**: Green and black color scheme with modern aesthetics
@@ -24,8 +24,10 @@ A full-stack AI assistant for music producers, featuring a chat interface with s
 - **Full-Stack Architecture**: React frontend with FastAPI backend
 - **Docker Support**: Easy deployment with Docker and docker-compose
 - **UV Integration**: Modern Python dependency management
-- **RAG Ready**: Prepared for retrieval-augmented generation with music data
+- **Advanced RAG System**: Retrieval-augmented generation with music production data
 - **Real-time Chat**: Streaming responses with loading states
+- **Tool Usage Display**: Visual indicators showing which tools are being used
+- **Global State Management**: Persistent analysis data across tool calls
 
 ## Quick Start
 
@@ -117,6 +119,8 @@ npm start
 - **Arrangement**: "Help me arrange a rock song with guitar, bass, and drums"
 - **DAW Help**: "How do I use Flex Time in Logic Pro?"
 - **Energy Analysis**: "Analyze the energy curve of my electronic track"
+- **Music Theory**: "What are the chord progressions in C major?"
+- **Production**: "How do I set up a basic mixing chain?"
 
 ## Project Structure
 
@@ -125,21 +129,27 @@ MusicMateAI/
 ├── backend/                 # FastAPI backend
 │   ├── main.py             # Main application file
 │   ├── clean_markdown.py   # Markdown processing
-│   └── rag.py              # RAG system (untouched)
+│   ├── rag.py              # RAG system with lazy initialization
+│   └── midi_processor.py   # MIDI file analysis
 ├── frontend/               # React frontend
 │   ├── src/
 │   │   ├── components/     # React components
+│   │   │   ├── ChatMessage.tsx
+│   │   │   ├── FileUpload.tsx
+│   │   │   └── ToolSelector.tsx
 │   │   ├── App.tsx         # Main app component
 │   │   └── index.tsx       # Entry point
 │   ├── package.json        # Node.js dependencies
 │   └── tailwind.config.js  # Tailwind CSS config
-├── unstructured_data/      # Raw music data (untouched)
-├── structured_data/        # Processed data (untouched)
+├── data/                   # Music production documents
+│   ├── *.pdf              # DAW manuals, music theory, production guides
+├── uploads/               # User uploaded files
 ├── Dockerfile              # Multi-stage Docker build
 ├── docker-compose.yml      # Docker orchestration
 ├── nginx.conf              # Nginx configuration
 ├── pyproject.toml          # UV project configuration
 ├── requirements.txt        # Python dependencies
+├── uv.lock                 # UV dependency lock file
 └── README.md              # This file
 ```
 
@@ -221,23 +231,35 @@ docker-compose logs -f
 
 ## Future Enhancements
 
-### RAG Integration
-- **DAW Documentation**: Add Logic Pro, Ableton, GarageBand manuals
-- **Music Theory Database**: Chord progressions, scales, harmony guides
-- **Sample Pack Catalogs**: Organized sample and loop databases
-- **Mixing/Mastering Guides**: Professional audio engineering resources
+### Advanced RAG & Retrieval
+- **Multi-modal RAG**: Integrate audio analysis with text retrieval
+- **Hybrid Search**: Combine dense vector search with keyword search
+- **Real-time Learning**: Update knowledge base as users interact
+- **Personalized Retrieval**: Adapt to user's music production style
 
-### Additional Tools
-- **Music Theory Helper**: Chord progressions, scale suggestions
-- **Mixing Advice**: EQ, compression, reverb recommendations
-- **Genre Analysis**: Identify and suggest genre-specific techniques
-- **Collaboration Tools**: Share projects and get feedback
+### AI Features
+- **Audio Analysis Integration**: MIDI to audio conversion and analysis
+- **Multi-Agent System**: Specialized agents for mixing, mastering, composition
+- **Conversational Memory**: Remember user preferences across sessions
+- **Real-time Audio Processing**: Live feedback during production
+
+### Production Workflow
+- **DAW Plugin Development**: VST/AU plugins with AI integration
+- **Project Templates**: AI-generated templates based on genre/style
+- **Collaborative Features**: Multi-user sessions with AI assistance
+- **Quality Assessment**: AI-powered mix/mastering evaluation
+
+### Content & Learning
+- **Interactive Tutorials**: AI-guided learning paths
+- **Video Integration**: Extract knowledge from tutorials
+- **Community Knowledge**: Crowdsourced tips and techniques
+- **Adaptive Learning**: Personalized learning based on progress
 
 ### Technical Improvements
-- **Real-time Audio Analysis**: Upload audio files for analysis
-- **MIDI Generation**: Create MIDI patterns and sequences
-- **Project Templates**: Pre-built project structures
-- **Plugin Recommendations**: Suggest VST/AU plugins
+- **Performance Optimization**: Caching, distributed processing
+- **Scalability**: Microservices, cloud deployment
+- **Security & Privacy**: Data encryption, secure audio handling
+- **Multi-language Support**: Global accessibility
 
 ## License
 

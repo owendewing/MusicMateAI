@@ -24,6 +24,11 @@ dependencies = [
     "pymupdf>=1.26.3",
     "tavily-python>=0.3.0",
     "python-multipart>=0.0.6",
+    # Advanced retrieval dependencies
+    "langchain-cohere>=0.4.5",
+    "ragas>=0.3.0",
+    "rapidfuzz>=3.13.0",
+    "python-dotenv>=1.1.1",
 ]
 
 [project.optional-dependencies]
@@ -39,6 +44,14 @@ dev = [
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["backend"]
+include = [
+    "backend/**/*.py",
+    "data/**/*",
+    "uploads/**/*",
+]
 
 [tool.black]
 line-length = 88

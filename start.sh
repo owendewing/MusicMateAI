@@ -7,4 +7,4 @@ nginx
 # Start the FastAPI backend
 echo "Starting FastAPI backend..."
 cd /app/backend
-python main.py 
+uvicorn main:app --host 0.0.0.0 --port 8000 
